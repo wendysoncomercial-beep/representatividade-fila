@@ -4,6 +4,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import io
 
 st.set_page_config(page_title="Representatividade por Fila", layout="wide")
 
@@ -29,7 +30,7 @@ if uploaded_file is not None:
         else:
             df = df_raw.copy()
 
-        # 🔎 PRÉVIA: agora mostra TODAS as horas, não só 0–4
+        # 🔎 PRÉVIA: mostra todas as linhas
         st.subheader("📋 Prévia dos Dados")
         st.dataframe(df, use_container_width=True)
 
@@ -41,6 +42,40 @@ if uploaded_file is not None:
         if not fila_cols:
             st.warning("Não foram encontradas colunas de filas (apenas 'Hour' e/ou totais).")
         else:
+            # ==========================
+            # 1) RESULTADO GERAL (TODAS AS HORAS)
+            # ==========================
+
+            # Converte todas as colunas de filas para número
+            df_filas_num_global = df[fila_cols].apply(pd.to_numeric, errors="coerce")
+
+            # Total por hora (linha)
+            total_hora_global = df_filas_num_global.sum(axis=1)
+
+            # Percentual por fila em cada hora
+            percent_global = df_filas_num_global.div(
+                total_hora_global.replace(0, np.nan), axis=0
+            ) * 100
+
+            # DataFrame geral com Hour + filas
+            df_percent_global = pd.concat(
+                [df["Hour"].reset_index(drop=True), percent_global.reset_index(drop=True)],
+                axis=1
+            )
+
+            # Versão formatada (##,##%)
+            df_percent_global_fmt = df_percent_global.copy()
+            for col in fila_cols:
+                df_percent_global_fmt[col] = df_percent_global_fmt[col].apply(
+                    lambda x: f"{x:.2f}".replace(".", ",") + "%"
+                    if pd.notna(x)
+                    else ""
+                )
+
+            # ==========================
+            # 2) ANÁLISE POR HORA (TABELA + GRÁFICO)
+            # ==========================
+
             # Lista de horas disponíveis (todas as que existirem no arquivo)
             horas = sorted(df["Hour"].dropna().unique().tolist())
 
@@ -99,12 +134,21 @@ if uploaded_file is not None:
                             st.subheader(f"📈 Gráfico - Hora {hora_escolhida}")
                             st.bar_chart(df_plot.set_index("Fila")["Percentual"])
 
-        # Botão de download do próprio arquivo enviado
-        st.download_button(
-            label="⬇️ Baixar o arquivo enviado",
-            data=uploaded_file.getvalue(),
-            file_name=uploaded_file.name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+            # ==========================
+            # 3) DOWNLOAD DO RESULTADO GERAL
+            # ==========================
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_percent_global_fmt.to_excel(
+                    writer, index=False, sheet_name="Representatividade"
+                )
+            buffer.seek(0)
+
+            st.download_button(
+                label="⬇️ Baixar resultado geral (Excel)",
+                data=buffer.getvalue(),
+                file_name="Representatividade_por_fila_por_hora.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 else:
     st.info("Envie um arquivo Excel para começar a análise.")
