@@ -1,6 +1,7 @@
 # app.py
 # Streamlit app para análise de representatividade por fila e hora
 # + distribuição de agentes com base na representatividade
+# + visão macro (todas as horas) e micro (hora selecionada)
 
 import streamlit as st
 import pandas as pd
@@ -31,8 +32,8 @@ if uploaded_file is not None:
         else:
             df = df_raw.copy()
 
-        # 🔎 PRÉVIA: mostra todas as linhas
-        st.subheader("📋 Prévia dos Dados")
+        # 🔎 Prévia dos dados brutos (como vem do Excel)
+        st.subheader("📋 Prévia dos Dados (bruto)")
         st.dataframe(df, use_container_width=True)
 
         # Identifica colunas de filas (todas menos Hour e qualquer coluna com 'total')
@@ -44,7 +45,7 @@ if uploaded_file is not None:
             st.warning("Não foram encontradas colunas de filas (apenas 'Hour' e/ou totais).")
         else:
             # ==========================
-            # 1) RESULTADO GERAL (TODAS AS HORAS)
+            # 1) RESULTADO GERAL (TODAS AS HORAS) - MACRO
             # ==========================
 
             # Converte todas as colunas de filas para número
@@ -58,7 +59,7 @@ if uploaded_file is not None:
                 total_hora_global.replace(0, np.nan), axis=0
             ) * 100
 
-            # DataFrame geral com Hour + filas
+            # DataFrame geral com Hour + filas (numérico)
             df_percent_global = pd.concat(
                 [df["Hour"].reset_index(drop=True), percent_global.reset_index(drop=True)],
                 axis=1
@@ -73,13 +74,22 @@ if uploaded_file is not None:
                     else ""
                 )
 
+            # 👉 VISÃO GERAL (MACRO)
+            st.subheader("🌎 Visão Geral (Macro) - Representatividade por Hora")
+            st.write(
+                "Cada linha representa uma hora, e cada coluna de fila traz a participação "
+                "percentual daquela fila dentro da hora."
+            )
+            st.dataframe(df_percent_global_fmt, use_container_width=True)
+
             # ==========================
-            # 2) ANÁLISE POR HORA (TABELA + GRÁFICO)
+            # 2) ANÁLISE POR HORA (MICRO) - DETALHE
             # ==========================
+
+            st.subheader("🔍 Visão por Hora (Micro)")
 
             # Lista de horas disponíveis (todas as que existirem no arquivo)
             horas = sorted(df["Hour"].dropna().unique().tolist())
-
             st.write(f"**Horas encontradas no arquivo:** {horas}")
             hora_escolhida = st.selectbox("⏰ Selecione uma hora:", horas)
 
@@ -136,7 +146,7 @@ if uploaded_file is not None:
                             st.bar_chart(df_plot.set_index("Fila")["Percentual"])
 
                         # ==========================
-                        # 2.1) DISTRIBUIÇÃO DE AGENTES
+                        # 2.1) DISTRIBUIÇÃO DE AGENTES (MICRO)
                         # ==========================
 
                         st.subheader(f"👥 Distribuição de agentes - Hora {hora_escolhida}")
@@ -146,8 +156,6 @@ if uploaded_file is not None:
                             step=1,
                             value=0
                         )
-
-                        df_agentes = None
 
                         if total_agentes > 0:
                             # Cálculo proporcional: agentes = total * percentual / 100
@@ -170,7 +178,7 @@ if uploaded_file is not None:
                                 use_container_width=True
                             )
 
-                            # Botão de download da distribuição de agentes
+                            # Botão de download da distribuição de agentes dessa hora
                             buf_agents = io.BytesIO()
                             with pd.ExcelWriter(buf_agents, engine="openpyxl") as writer:
                                 df_agentes.to_excel(
@@ -191,7 +199,7 @@ if uploaded_file is not None:
                             )
 
             # ==========================
-            # 3) DOWNLOAD DO RESULTADO GERAL (TODAS AS HORAS x FILAS)
+            # 3) DOWNLOAD DO RESULTADO GERAL (MACRO)
             # ==========================
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
