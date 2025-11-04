@@ -29,11 +29,11 @@ if uploaded_file is not None:
         st.subheader("📋 Prévia dos Dados")
         st.dataframe(df.head(), use_container_width=True)
 
-        # Colunas de percentual = todas menos Hour e Total (se houver)
-        percent_cols = [c for c in df.columns if c not in ["Hour", total_col] if total_col]
-
-        # Caso total_col não exista, considera todas menos Hour
-        if not percent_cols:
+        # Colunas de percentual:
+        # se tiver coluna de total, exclui Hour + total; se não tiver, exclui só Hour
+        if total_col:
+            percent_cols = [c for c in df.columns if c not in ["Hour", total_col]]
+        else:
             percent_cols = [c for c in df.columns if c != "Hour"]
 
         # Filtro de hora
@@ -53,7 +53,7 @@ if uploaded_file is not None:
             for col in percent_cols:
                 val = row[col]
 
-                # Tenta converter string "12,34%" ou "12.34%" para número
+                # Tenta converter string "12,34%" ou "12.34%" em número
                 if isinstance(val, str):
                     val_str = val.strip().replace("%", "").replace(",", ".")
                     try:
@@ -71,14 +71,24 @@ if uploaded_file is not None:
             else:
                 df_plot = pd.DataFrame(dados).sort_values("Percentual", ascending=False)
 
+                # 👉 Aqui formatamos o percentual no padrão brasileiro ##,##%
+                df_plot["Percentual_formatado"] = df_plot["Percentual"].apply(
+                    lambda x: f"{x:.2f}".replace(".", ",") + "%"
+                )
+
                 col1, col2 = st.columns([2, 3])
 
                 with col1:
                     st.subheader(f"📄 Tabela - Hora {hora_escolhida}")
-                    st.dataframe(df_plot, use_container_width=True)
+                    # Mostra só Fila + Percentual formatado
+                    st.dataframe(
+                        df_plot[["Fila", "Percentual_formatado"]],
+                        use_container_width=True
+                    )
 
                 with col2:
                     st.subheader(f"📈 Gráfico - Hora {hora_escolhida}")
+                    # Gráfico usa o valor numérico (com ponto)
                     st.bar_chart(
                         df_plot.set_index("Fila")["Percentual"]
                     )
