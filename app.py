@@ -29,8 +29,9 @@ if uploaded_file is not None:
         else:
             df = df_raw.copy()
 
+        # 🔎 PRÉVIA: agora mostra TODAS as horas, não só 0–4
         st.subheader("📋 Prévia dos Dados")
-        st.dataframe(df.head(), use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
         # Identifica colunas de filas (todas menos Hour e qualquer coluna com 'total')
         total_cols = [c for c in df.columns if "total" in c.lower()]
