@@ -1,5 +1,6 @@
 # app.py
 # Streamlit app para análise de representatividade por fila e hora
+# + distribuição de agentes com base na representatividade
 
 import streamlit as st
 import pandas as pd
@@ -134,8 +135,63 @@ if uploaded_file is not None:
                             st.subheader(f"📈 Gráfico - Hora {hora_escolhida}")
                             st.bar_chart(df_plot.set_index("Fila")["Percentual"])
 
+                        # ==========================
+                        # 2.1) DISTRIBUIÇÃO DE AGENTES
+                        # ==========================
+
+                        st.subheader(f"👥 Distribuição de agentes - Hora {hora_escolhida}")
+                        total_agentes = st.number_input(
+                            "Informe o total de agentes disponíveis nessa hora:",
+                            min_value=0,
+                            step=1,
+                            value=0
+                        )
+
+                        df_agentes = None
+
+                        if total_agentes > 0:
+                            # Cálculo proporcional: agentes = total * percentual / 100
+                            raw = total_agentes * df_plot["Percentual"] / 100.0
+
+                            # Parte inteira
+                            base = np.floor(raw).astype(int)
+                            df_agentes = df_plot.copy()
+                            df_agentes["Agentes_sugeridos"] = base
+
+                            # Ajuste para garantir que a soma = total_agentes
+                            sobra = int(total_agentes - base.sum())
+                            if sobra > 0:
+                                frac = (raw - base).sort_values(ascending=False)
+                                idx_extra = frac.index[:sobra]
+                                df_agentes.loc[idx_extra, "Agentes_sugeridos"] += 1
+
+                            st.dataframe(
+                                df_agentes[["Fila", "Percentual_formatado", "Agentes_sugeridos"]],
+                                use_container_width=True
+                            )
+
+                            # Botão de download da distribuição de agentes
+                            buf_agents = io.BytesIO()
+                            with pd.ExcelWriter(buf_agents, engine="openpyxl") as writer:
+                                df_agentes.to_excel(
+                                    writer,
+                                    index=False,
+                                    sheet_name=f"Distribuicao_H{hora_escolhida}"
+                                )
+                            buf_agents.seek(0)
+
+                            st.download_button(
+                                label="⬇️ Baixar distribuição de agentes (Excel)",
+                                data=buf_agents.getvalue(),
+                                file_name=f"Distribuicao_agentes_hora_{hora_escolhida}.xlsx",
+                                mime=(
+                                    "application/vnd.openxmlformats-officedocument."
+                                    "spreadsheetml.sheet"
+                                ),
+                            )
+
             # ==========================
-            # 3) DOWNLOAD DO RESULTADO GERAL
+            # 3) DOWNLOAD DO RESULTADO GERAL (TODAS AS HORAS x FILAS)
             # ==========================
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
