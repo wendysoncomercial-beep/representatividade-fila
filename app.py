@@ -54,7 +54,7 @@ if uploaded_file is not None:
             # Total por hora (linha)
             total_hora_global = df_filas_num_global.sum(axis=1)
 
-            # Percentual por fila em cada hora
+            # Percentual por fila em cada hora (numérico)
             percent_global = df_filas_num_global.div(
                 total_hora_global.replace(0, np.nan), axis=0
             ) * 100
@@ -74,13 +74,100 @@ if uploaded_file is not None:
                     else ""
                 )
 
-            # 👉 VISÃO GERAL (MACRO)
+            # 👉 VISÃO GERAL (MACRO) - REPRESENTATIVIDADE
             st.subheader("🌎 Visão Geral (Macro) - Representatividade por Hora")
             st.write(
                 "Cada linha representa uma hora, e cada coluna de fila traz a participação "
                 "percentual daquela fila dentro da hora."
             )
             st.dataframe(df_percent_global_fmt, use_container_width=True)
+
+            # ==========================
+            # 1.1) DISTRIBUIÇÃO GERAL DE AGENTES (TODAS AS HORAS)
+            # ==========================
+
+            st.subheader("👥 Visão Geral - Distribuição de Agentes (todas as horas)")
+            total_agentes_global = st.number_input(
+                "Informe o total de agentes disponíveis por hora (mesmo valor para todas as horas):",
+                min_value=0,
+                step=1,
+                value=0,
+            )
+
+            df_agentes_global = None
+
+            if total_agentes_global > 0:
+                registros = []
+
+                # Percorre cada hora (linha do DataFrame)
+                for idx, hora in enumerate(df["Hour"].tolist()):
+                    # Percentuais dessa hora para todas as filas
+                    row_percent = percent_global.loc[idx, fila_cols]
+
+                    # Se não tiver volume (tudo NaN ou 0), pula
+                    if row_percent.isna().all() or np.isclose(row_percent.fillna(0).sum(), 0):
+                        continue
+
+                    # Troca NaN por 0 para evitar problemas no cálculo
+                    row_percent = row_percent.fillna(0)
+
+                    # Cálculo proporcional para essa hora
+                    raw = total_agentes_global * row_percent / 100.0
+
+                    # Parte inteira
+                    base = np.floor(raw).astype(int)
+
+                    # Ajuste para garantir que a soma = total_agentes_global
+                    sobra = int(total_agentes_global - base.sum())
+                    if sobra > 0:
+                        frac = (raw - base).sort_values(ascending=False)
+                        idx_extra = frac.index[:sobra]
+                        base.loc[idx_extra] += 1
+
+                    # Monta registros por fila (pode filtrar só >0 se quiser enxugar)
+                    for fila in fila_cols:
+                        agentes = int(base.get(fila, 0))
+                        percentual = float(row_percent[fila])
+
+                        if agentes > 0 and percentual > 0:
+                            registros.append(
+                                {
+                                    "Hour": hora,
+                                    "Fila": fila,
+                                    "Percentual": percentual,
+                                    "Percentual_formatado": f"{percentual:.2f}".replace(".", ",") + "%",
+                                    "Agentes_sugeridos": agentes,
+                                }
+                            )
+
+                if registros:
+                    df_agentes_global = pd.DataFrame(registros)
+                    st.dataframe(df_agentes_global, use_container_width=True)
+
+                    # Download da distribuição geral de agentes
+                    buf_agents_global = io.BytesIO()
+                    with pd.ExcelWriter(buf_agents_global, engine="openpyxl") as writer:
+                        df_agentes_global.to_excel(
+                            writer,
+                            index=False,
+                            sheet_name="Distribuicao_Geral_Agentes",
+                        )
+                    buf_agents_global.seek(0)
+
+                    st.download_button(
+                        label="⬇️ Baixar distribuição geral de agentes (Excel)",
+                        data=buf_agents_global.getvalue(),
+                        file_name="Distribuicao_agentes_geral.xlsx",
+                        mime=(
+                            "application/vnd.openxmlformats-officedocument."
+                            "spreadsheetml.sheet"
+                        ),
+                    )
+                else:
+                    st.info(
+                        "Não foi possível calcular a distribuição geral de agentes — "
+                        "verifique se há volume em alguma hora."
+                    )
 
             # ==========================
             # 2) ANÁLISE POR HORA (MICRO) - DETALHE
@@ -154,7 +241,8 @@ if uploaded_file is not None:
                             "Informe o total de agentes disponíveis nessa hora:",
                             min_value=0,
                             step=1,
-                            value=0
+                            value=0,
+                            key="input_agentes_hora",
                         )
 
                         if total_agentes > 0:
@@ -189,7 +277,7 @@ if uploaded_file is not None:
                             buf_agents.seek(0)
 
                             st.download_button(
-                                label="⬇️ Baixar distribuição de agentes (Excel)",
+                                label="⬇️ Baixar distribuição de agentes dessa hora (Excel)",
                                 data=buf_agents.getvalue(),
                                 file_name=f"Distribuicao_agentes_hora_{hora_escolhida}.xlsx",
                                 mime=(
