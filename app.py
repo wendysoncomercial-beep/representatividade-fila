@@ -94,41 +94,41 @@ if uploaded_file is not None:
                 value=0,
             )
 
-            df_agentes_global = None
+            df_agentes_global_long = None
 
             if total_agentes_global > 0:
-                registros = []
+                # Percentuais em formato numérico, trocando NaN por 0
+                perc = percent_global.fillna(0)
 
-                # Percorre cada hora (linha do DataFrame)
-                for idx, hora in enumerate(df["Hour"].tolist()):
-                    # Percentuais dessa hora para todas as filas
-                    row_percent = percent_global.loc[idx, fila_cols]
+                # Raw = agentes fracionários
+                raw = perc * total_agentes_global / 100.0
 
-                    # Se não tiver volume (tudo NaN ou 0), pula
-                    if row_percent.isna().all() or np.isclose(row_percent.fillna(0).sum(), 0):
-                        continue
+                # Parte inteira
+                base = np.floor(raw).astype(int)
 
-                    # Troca NaN por 0 para evitar problemas no cálculo
-                    row_percent = row_percent.fillna(0)
-
-                    # Cálculo proporcional para essa hora
-                    raw = total_agentes_global * row_percent / 100.0
-
-                    # Parte inteira
-                    base = np.floor(raw).astype(int)
-
-                    # Ajuste para garantir que a soma = total_agentes_global
-                    sobra = int(total_agentes_global - base.sum())
+                # Ajuste por linha (hora) para garantir que a soma = total_agentes_global
+                agentes_ajustados = base.copy()
+                for i in range(agentes_ajustados.shape[0]):
+                    soma_linha = agentes_ajustados.iloc[i].sum()
+                    sobra = int(total_agentes_global - soma_linha)
                     if sobra > 0:
-                        frac = (raw - base).sort_values(ascending=False)
+                        # distribui sobrando pros maiores decimais daquela hora
+                        frac = (raw.iloc[i] - base.iloc[i]).sort_values(ascending=False)
                         idx_extra = frac.index[:sobra]
-                        base.loc[idx_extra] += 1
+                        agentes_ajustados.loc[i, idx_extra] += 1
 
-                    # Monta registros por fila (pode filtrar só >0 se quiser enxugar)
+                # Cria tabela larga: Hour x Fila (Agentes)
+                df_agentes_wide = pd.concat(
+                    [df["Hour"].reset_index(drop=True), agentes_ajustados.reset_index(drop=True)],
+                    axis=1
+                )
+
+                # Cria tabela longa: Hour, Fila, Percentual, Agentes
+                registros = []
+                for i, hora in enumerate(df["Hour"].tolist()):
                     for fila in fila_cols:
-                        agentes = int(base.get(fila, 0))
-                        percentual = float(row_percent[fila])
-
+                        agentes = int(agentes_ajustados.iloc[i][fila])
+                        percentual = float(perc.iloc[i][fila])
                         if agentes > 0 and percentual > 0:
                             registros.append(
                                 {
@@ -141,16 +141,26 @@ if uploaded_file is not None:
                             )
 
                 if registros:
-                    df_agentes_global = pd.DataFrame(registros)
-                    st.dataframe(df_agentes_global, use_container_width=True)
+                    df_agentes_global_long = pd.DataFrame(registros)
 
-                    # Download da distribuição geral de agentes
+                    st.markdown("**Tabela larga (Hour x Fila com agentes):**")
+                    st.dataframe(df_agentes_wide, use_container_width=True)
+
+                    st.markdown("**Tabela detalhada (Hour, Fila, %, Agentes):**")
+                    st.dataframe(df_agentes_global_long, use_container_width=True)
+
+                    # Download da distribuição geral de agentes (tabela longa)
                     buf_agents_global = io.BytesIO()
                     with pd.ExcelWriter(buf_agents_global, engine="openpyxl") as writer:
-                        df_agentes_global.to_excel(
+                        df_agentes_wide.to_excel(
                             writer,
                             index=False,
-                            sheet_name="Distribuicao_Geral_Agentes",
+                            sheet_name="Distribuicao_Agentes_Wide",
+                        )
+                        df_agentes_global_long.to_excel(
+                            writer,
+                            index=False,
+                            sheet_name="Distribuicao_Agentes_Long",
                         )
                     buf_agents_global.seek(0)
 
