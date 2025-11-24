@@ -16,6 +16,36 @@ st.write(
     "(pode ser o arquivo bruto de entrantes ou já em quantidade)."
 )
 
+
+def normaliza_hora_para_turno(valor):
+    """
+    Normaliza a coluna Hour para o formato 'HH:00',
+    para poder casar com os horários de turno (08:00, 09:00, etc).
+    """
+    if pd.isna(valor):
+        return None
+
+    # Se vier como número (8, 9.0, etc.)
+    if isinstance(valor, (int, float, np.integer, np.floating)):
+        return f"{int(valor):02d}:00"
+
+    s = str(valor).strip()
+
+    # Se já tiver horário tipo '08:00', '8:30', etc.
+    if ":" in s:
+        partes = s.split(":")
+        try:
+            return f"{int(partes[0]):02d}:00"
+        except Exception:
+            return None
+
+    # Se vier como '8', '8.0', '09', etc.
+    try:
+        return f"{int(float(s)):02d}:00"
+    except Exception:
+        return None
+
+
 uploaded_file = st.file_uploader("📂 Envie o arquivo Excel", type=["xlsx"])
 
 if uploaded_file is not None:
@@ -87,45 +117,124 @@ if uploaded_file is not None:
             # ==========================
 
             st.subheader("👥 Visão Geral - Distribuição de Agentes (todas as horas)")
+            st.markdown(
+                "Primeiro informe um **total padrão de agentes por hora** "
+                "e, se quiser, ajuste os **agentes logados por horário de turno**."
+            )
+
+            # Total padrão (fallback)
             total_agentes_global = st.number_input(
-                "Informe o total de agentes disponíveis por hora (mesmo valor para todas as horas):",
+                "Total padrão de agentes disponíveis por hora (usado como valor default):",
                 min_value=0,
                 step=1,
                 value=0,
             )
 
+            # Horários de turnos fornecidos (ajustado para 08:00 até 19:00)
+            HORARIOS_TURNO = [
+                "08:00", "09:00", "10:00", "11:00", "12:00",
+                "13:00", "14:00", "15:00", "16:00", "17:00",
+                "18:00", "19:00",
+            ]
+
+            col_a, col_b, col_c = st.columns(3)
+            agentes_por_turno = {}
+
+            # Distribui os horários nas 3 colunas de forma simples
+            with col_a:
+                for h in HORARIOS_TURNO[0:4]:  # 08, 09, 10, 11
+                    agentes_por_turno[h] = st.number_input(
+                        f"Agentes logados às {h}",
+                        min_value=0,
+                        step=1,
+                        value=total_agentes_global,
+                        key=f"agentes_{h.replace(':', '')}",
+                    )
+
+            with col_b:
+                for h in HORARIOS_TURNO[4:8]:  # 12, 13, 14, 15
+                    agentes_por_turno[h] = st.number_input(
+                        f"Agentes logados às {h}",
+                        min_value=0,
+                        step=1,
+                        value=total_agentes_global,
+                        key=f"agentes_{h.replace(':', '')}",
+                    )
+
+            with col_c:
+                for h in HORARIOS_TURNO[8:]:  # 16, 17, 18, 19
+                    agentes_por_turno[h] = st.number_input(
+                        f"Agentes logados às {h}",
+                        min_value=0,
+                        step=1,
+                        value=total_agentes_global,
+                        key=f"agentes_{h.replace(':', '')}",
+                    )
+
+            # Normaliza as horas do DataFrame para casar com os turnos
+            horas_normalizadas = df["Hour"].apply(normaliza_hora_para_turno)
+
+            # Série com total de agentes por linha/hora
+            serie_totais_por_hora = horas_normalizadas.map(
+                lambda h: agentes_por_turno.get(h, total_agentes_global)
+            )
+
+            # Tabela auxiliar mostrando agentes logados por hora
+            df_totais_agentes = pd.DataFrame(
+                {
+                    "Hour": df["Hour"],
+                    "Hour_turno": horas_normalizadas,
+                    "Agentes_logados": serie_totais_por_hora.fillna(0).astype(int),
+                }
+            )
+
+            st.markdown("**Quantidade de agentes logados por hora (aplicada nos cálculos):**")
+            st.dataframe(df_totais_agentes, use_container_width=True)
+
             df_agentes_global_long = None
 
-            if total_agentes_global > 0:
+            # Verifica se ao menos uma hora tem agentes > 0
+            if (serie_totais_por_hora.fillna(0) > 0).any():
                 # Percentuais em formato numérico, trocando NaN por 0
                 perc = percent_global.fillna(0)
 
-                # Raw = agentes fracionários
-                raw = perc * total_agentes_global / 100.0
+                # Array com total de agentes por linha (fallback para total_agentes_global)
+                tot_array = serie_totais_por_hora.fillna(total_agentes_global).to_numpy()
+
+                # Raw = agentes fracionários, linha a linha
+                raw = perc.mul(tot_array.reshape(-1, 1), axis=0) / 100.0
 
                 # Parte inteira
                 base = np.floor(raw).astype(int)
 
-                # Ajuste por linha (hora) para garantir que a soma = total_agentes_global
+                # Ajuste por linha (hora) para garantir que a soma = total de agentes da linha
                 agentes_ajustados = base.copy()
                 for i in range(agentes_ajustados.shape[0]):
                     soma_linha = agentes_ajustados.iloc[i].sum()
-                    sobra = int(total_agentes_global - soma_linha)
+                    sobra = int(tot_array[i] - soma_linha)
                     if sobra > 0:
                         # distribui sobrando pros maiores decimais daquela hora
                         frac = (raw.iloc[i] - base.iloc[i]).sort_values(ascending=False)
                         idx_extra = frac.index[:sobra]
                         agentes_ajustados.loc[i, idx_extra] += 1
 
-                # Cria tabela larga: Hour x Fila (Agentes)
+                # Cria tabela larga: Hour x Fila (Agentes) + coluna de agentes logados
                 df_agentes_wide = pd.concat(
-                    [df["Hour"].reset_index(drop=True), agentes_ajustados.reset_index(drop=True)],
-                    axis=1
+                    [
+                        df["Hour"].reset_index(drop=True),
+                        pd.Series(tot_array, name="Agentes_logados"),
+                        agentes_ajustados.reset_index(drop=True),
+                    ],
+                    axis=1,
                 )
 
                 # Cria tabela longa: Hour, Fila, Percentual, Agentes
                 registros = []
-                for i, hora in enumerate(df["Hour"].tolist()):
+                horas_lista = df["Hour"].tolist()
+                agentes_totais_lista = tot_array.tolist()
+
+                for i, hora in enumerate(horas_lista):
+                    agentes_totais_linha = int(agentes_totais_lista[i])
                     for fila in fila_cols:
                         agentes = int(agentes_ajustados.iloc[i][fila])
                         percentual = float(perc.iloc[i][fila])
@@ -137,6 +246,7 @@ if uploaded_file is not None:
                                     "Percentual": percentual,
                                     "Percentual_formatado": f"{percentual:.2f}".replace(".", ",") + "%",
                                     "Agentes_sugeridos": agentes,
+                                    "Agentes_logados_na_hora": agentes_totais_linha,
                                 }
                             )
 
@@ -149,7 +259,7 @@ if uploaded_file is not None:
                     st.markdown("**Tabela detalhada (Hour, Fila, %, Agentes):**")
                     st.dataframe(df_agentes_global_long, use_container_width=True)
 
-                    # Download da distribuição geral de agentes (tabela longa)
+                    # Download da distribuição geral de agentes (tabela longa e wide)
                     buf_agents_global = io.BytesIO()
                     with pd.ExcelWriter(buf_agents_global, engine="openpyxl") as writer:
                         df_agentes_wide.to_excel(
@@ -178,6 +288,11 @@ if uploaded_file is not None:
                         "Não foi possível calcular a distribuição geral de agentes — "
                         "verifique se há volume em alguma hora."
                     )
+            else:
+                st.info(
+                    "Informe ao menos um valor de agentes (padrão ou por horário) maior que zero "
+                    "para calcular a distribuição geral."
+                )
 
             # ==========================
             # 2) ANÁLISE POR HORA (MICRO) - DETALHE
@@ -247,11 +362,18 @@ if uploaded_file is not None:
                         # ==========================
 
                         st.subheader(f"👥 Distribuição de agentes - Hora {hora_escolhida}")
+
+                        # Sugere como default o total de agentes logados nessa hora (se mapeado)
+                        valor_padrao_hora = 0
+                        hora_norm_escolhida = normaliza_hora_para_turno(hora_escolhida)
+                        if hora_norm_escolhida in agentes_por_turno:
+                            valor_padrao_hora = agentes_por_turno[hora_norm_escolhida]
+
                         total_agentes = st.number_input(
                             "Informe o total de agentes disponíveis nessa hora:",
                             min_value=0,
                             step=1,
-                            value=0,
+                            value=int(valor_padrao_hora),
                             key="input_agentes_hora",
                         )
 
