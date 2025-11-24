@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import altair as alt  # <-- para o gráfico com rótulos
 
 st.set_page_config(page_title="Representatividade por Fila", layout="wide")
 
@@ -171,7 +172,7 @@ if uploaded_file is not None:
                 lambda h: agentes_por_turno.get(h, 0)
             )
 
-            # (Tabela auxiliar continua existindo, mas não é exibida)
+            # Tabela auxiliar (não exibida, só usada no cálculo)
             df_totais_agentes = pd.DataFrame(
                 {
                     "Hour": df["Hour"],
@@ -179,7 +180,6 @@ if uploaded_file is not None:
                     "Agentes_logados": serie_totais_por_hora.fillna(0).astype(int),
                 }
             )
-            # TABELA OCULTA: não usamos st.markdown() nem st.dataframe() aqui
 
             df_agentes_global_long = None
 
@@ -349,19 +349,6 @@ if uploaded_file is not None:
                             lambda x: f"{x:.2f}".replace(".", ",") + "%"
                         )
 
-                        col1, col2 = st.columns([2, 3])
-
-                        with col1:
-                            st.subheader(f"📄 Tabela - Hora {hora_escolhida}")
-                            st.dataframe(
-                                df_plot[["Fila", "Percentual_formatado"]],
-                                use_container_width=True
-                            )
-
-                        with col2:
-                            st.subheader(f"📈 Gráfico - Hora {hora_escolhida}")
-                            st.bar_chart(df_plot.set_index("Fila")["Percentual"])
-
                         # ==========================
                         # 2.1) DISTRIBUIÇÃO DE AGENTES (MICRO)
                         # ==========================
@@ -398,18 +385,71 @@ if uploaded_file is not None:
                                 idx_extra = frac.index[:sobra]
                                 df_agentes.loc[idx_extra, "Agentes_sugeridos"] += 1
 
-                            st.dataframe(
-                                df_agentes[["Fila", "Percentual_formatado", "Agentes_sugeridos"]],
-                                use_container_width=True
-                            )
+                            # Ordena do maior pro menor em quantidade de agentes
+                            df_agentes_sorted = df_agentes.sort_values(
+                                "Agentes_sugeridos", ascending=False
+                            ).reset_index(drop=True)
+
+                            # Tabela substituindo a antiga "Tabela - Hora"
+                            col1, col2 = st.columns([2, 3])
+
+                            with col1:
+                                st.subheader(f"📄 Distribuição por fila - Hora {hora_escolhida}")
+                                st.dataframe(
+                                    df_agentes_sorted[
+                                        ["Fila", "Percentual_formatado", "Agentes_sugeridos"]
+                                    ],
+                                    use_container_width=True,
+                                )
+
+                            with col2:
+                                st.subheader(f"📈 Gráfico - Hora {hora_escolhida}")
+                                chart = (
+                                    alt.Chart(df_agentes_sorted)
+                                    .mark_bar()
+                                    .encode(
+                                        x=alt.X(
+                                            "Fila:N",
+                                            sort=None,
+                                            title="Fila",
+                                        ),
+                                        y=alt.Y(
+                                            "Agentes_sugeridos:Q",
+                                            title="Agentes sugeridos",
+                                        ),
+                                        tooltip=[
+                                            alt.Tooltip("Fila:N", title="Fila"),
+                                            alt.Tooltip(
+                                                "Agentes_sugeridos:Q",
+                                                title="Agentes",
+                                            ),
+                                            alt.Tooltip(
+                                                "Percentual_formatado:N",
+                                                title="% na hora",
+                                            ),
+                                        ],
+                                    )
+                                )
+
+                                text = (
+                                    alt.Chart(df_agentes_sorted)
+                                    .mark_text(dy=-5)
+                                    .encode(
+                                        x=alt.X("Fila:N", sort=None),
+                                        y=alt.Y("Agentes_sugeridos:Q"),
+                                        text=alt.Text("Agentes_sugeridos:Q"),
+                                    )
+                                )
+
+                                st.altair_chart(chart + text, use_container_width=True)
 
                             # Botão de download da distribuição de agentes dessa hora
                             buf_agents = io.BytesIO()
                             with pd.ExcelWriter(buf_agents, engine="openpyxl") as writer:
-                                df_agentes.to_excel(
+                                df_agentes_sorted.to_excel(
                                     writer,
                                     index=False,
-                                    sheet_name=f"Distribuicao_H{hora_escolhida}"
+                                    sheet_name=f"Distribuicao_H{hora_escolhida}",
                                 )
                             buf_agents.seek(0)
 
