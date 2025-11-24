@@ -147,7 +147,7 @@ if uploaded_file is not None:
             col_a, col_b, col_c = st.columns(3)
             agentes_por_turno = {}
 
-            # Distribui os horários nas 3 colunas de forma simples
+            # Inputs por horário
             with col_a:
                 for h in HORARIOS_TURNO[0:4]:  # 08, 09, 10, 11
                     agentes_por_turno[h] = st.number_input(
@@ -217,7 +217,6 @@ if uploaded_file is not None:
                     soma_linha = agentes_ajustados.iloc[i].sum()
                     sobra = int(tot_array[i] - soma_linha)
                     if sobra > 0:
-                        # distribui sobrando pros maiores decimais daquela hora
                         frac = (raw.iloc[i] - base.iloc[i]).sort_values(ascending=False)
                         idx_extra = frac.index[:sobra]
                         agentes_ajustados.loc[i, idx_extra] += 1
@@ -240,8 +239,7 @@ if uploaded_file is not None:
                 for i, hora in enumerate(horas_lista):
                     agentes_totais_linha = int(agentes_totais_lista[i])
                     if agentes_totais_linha <= 0:
-                        # se não tem agente logado, ignora essa hora na tabela detalhada
-                        continue
+                        continue  # sem agente logado -> ignora
 
                     for fila in fila_cols:
                         agentes = int(agentes_ajustados.iloc[i][fila])
@@ -261,7 +259,7 @@ if uploaded_file is not None:
                 if registros:
                     df_agentes_global_long = pd.DataFrame(registros)
 
-                    # ➜ Ordena: 1) Agentes_sugeridos (desc), 2) Hora (asc, via Hour_ord)
+                    # ➜ Ordena: 1) Hora (asc via Hour_ord), 2) Agentes_sugeridos (desc)
                     df_agentes_global_long_sorted = df_agentes_global_long.copy()
                     df_agentes_global_long_sorted["Hour_ord"] = df_agentes_global_long_sorted[
                         "Hour"
@@ -269,8 +267,8 @@ if uploaded_file is not None:
 
                     df_agentes_global_long_sorted = (
                         df_agentes_global_long_sorted.sort_values(
-                            by=["Agentes_sugeridos", "Hour_ord"],
-                            ascending=[False, True],
+                            by=["Hour_ord", "Agentes_sugeridos"],
+                            ascending=[True, False],
                         )
                         .drop(columns=["Hour_ord"])
                         .reset_index(drop=True)
@@ -290,7 +288,7 @@ if uploaded_file is not None:
                     st.dataframe(df_agentes_wide, use_container_width=True)
 
                     st.markdown(
-                        "**Tabela detalhada (Hour, Fila, %, Agentes) – ordenada por agentes (desc) e hora (asc):**"
+                        "**Tabela detalhada (Hour, Fila, %, Agentes) – hora asc, agentes desc:**"
                     )
                     st.dataframe(df_agentes_global_long_view, use_container_width=True)
 
@@ -302,7 +300,6 @@ if uploaded_file is not None:
                             index=False,
                             sheet_name="Distribuicao_Agentes_Wide",
                         )
-                        # Exporta também só com Percentual_formatado já ordenada
                         df_agentes_global_long_view.to_excel(
                             writer,
                             index=False,
@@ -421,7 +418,7 @@ if uploaded_file is not None:
                                 "Agentes_sugeridos", ascending=False
                             ).reset_index(drop=True)
 
-                            # Tabela substituindo a antiga "Tabela - Hora"
+                            # Tabela + gráfico
                             col1, col2 = st.columns([2, 3])
 
                             with col1:
