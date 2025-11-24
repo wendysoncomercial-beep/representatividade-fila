@@ -118,19 +118,11 @@ if uploaded_file is not None:
 
             st.subheader("👥 Visão Geral - Distribuição de Agentes (todas as horas)")
             st.markdown(
-                "Primeiro informe um **total padrão de agentes por hora** "
-                "e, se quiser, ajuste os **agentes logados por horário de turno**."
+                "Informe quantos **agentes logados** você tem em cada horário de turno. "
+                "A distribuição por fila será feita usando exclusivamente esses volumes por hora."
             )
 
-            # Total padrão (fallback)
-            total_agentes_global = st.number_input(
-                "Total padrão de agentes disponíveis por hora (usado como valor default):",
-                min_value=0,
-                step=1,
-                value=0,
-            )
-
-            # Horários de turnos fornecidos (ajustado para 08:00 até 19:00)
+            # Horários de turnos (08:00 até 19:00)
             HORARIOS_TURNO = [
                 "08:00", "09:00", "10:00", "11:00", "12:00",
                 "13:00", "14:00", "15:00", "16:00", "17:00",
@@ -147,7 +139,7 @@ if uploaded_file is not None:
                         f"Agentes logados às {h}",
                         min_value=0,
                         step=1,
-                        value=total_agentes_global,
+                        value=0,
                         key=f"agentes_{h.replace(':', '')}",
                     )
 
@@ -157,7 +149,7 @@ if uploaded_file is not None:
                         f"Agentes logados às {h}",
                         min_value=0,
                         step=1,
-                        value=total_agentes_global,
+                        value=0,
                         key=f"agentes_{h.replace(':', '')}",
                     )
 
@@ -167,16 +159,16 @@ if uploaded_file is not None:
                         f"Agentes logados às {h}",
                         min_value=0,
                         step=1,
-                        value=total_agentes_global,
+                        value=0,
                         key=f"agentes_{h.replace(':', '')}",
                     )
 
             # Normaliza as horas do DataFrame para casar com os turnos
             horas_normalizadas = df["Hour"].apply(normaliza_hora_para_turno)
 
-            # Série com total de agentes por linha/hora
+            # Série com total de agentes por linha/hora (sem fallback global, só por turno)
             serie_totais_por_hora = horas_normalizadas.map(
-                lambda h: agentes_por_turno.get(h, total_agentes_global)
+                lambda h: agentes_por_turno.get(h, 0)
             )
 
             # Tabela auxiliar mostrando agentes logados por hora
@@ -198,8 +190,8 @@ if uploaded_file is not None:
                 # Percentuais em formato numérico, trocando NaN por 0
                 perc = percent_global.fillna(0)
 
-                # Array com total de agentes por linha (fallback para total_agentes_global)
-                tot_array = serie_totais_por_hora.fillna(total_agentes_global).to_numpy()
+                # Array com total de agentes por linha
+                tot_array = serie_totais_por_hora.fillna(0).to_numpy()
 
                 # Raw = agentes fracionários, linha a linha
                 raw = perc.mul(tot_array.reshape(-1, 1), axis=0) / 100.0
@@ -235,6 +227,10 @@ if uploaded_file is not None:
 
                 for i, hora in enumerate(horas_lista):
                     agentes_totais_linha = int(agentes_totais_lista[i])
+                    if agentes_totais_linha <= 0:
+                        # se não tem agente logado, ignora essa hora na tabela detalhada
+                        continue
+
                     for fila in fila_cols:
                         agentes = int(agentes_ajustados.iloc[i][fila])
                         percentual = float(perc.iloc[i][fila])
@@ -286,11 +282,11 @@ if uploaded_file is not None:
                 else:
                     st.info(
                         "Não foi possível calcular a distribuição geral de agentes — "
-                        "verifique se há volume em alguma hora."
+                        "verifique se há volume e agentes logados em alguma hora."
                     )
             else:
                 st.info(
-                    "Informe ao menos um valor de agentes (padrão ou por horário) maior que zero "
+                    "Informe pelo menos um valor de agentes logados maior que zero "
                     "para calcular a distribuição geral."
                 )
 
