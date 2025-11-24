@@ -11,30 +11,6 @@ import altair as alt  # para o gráfico com rótulos
 
 st.set_page_config(page_title="Representatividade por Fila", layout="wide")
 
-# 🔧 CSS global para centralizar todas as tabelas (st.dataframe e st.table)
-st.markdown(
-    """
-    <style>
-    /* st.dataframe (grid virtualizada) */
-    [data-testid="stDataFrame"] div[role="gridcell"],
-    [data-testid="stDataFrame"] div[role="columnheader"] {
-        justify-content: center !important;
-        text-align: center !important;
-        display: flex;
-        align-items: center;
-    }
-
-    /* st.table (HTML table tradicional) */
-    [data-testid="stTable"] table td,
-    [data-testid="stTable"] table th {
-        text-align: center !important;
-        vertical-align: middle !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 st.title("📊 Representatividade por Fila e Hora")
 st.write(
     "Envie o arquivo Excel com os dados por fila/hora "
