@@ -171,7 +171,7 @@ if uploaded_file is not None:
                 lambda h: agentes_por_turno.get(h, 0)
             )
 
-            # Tabela auxiliar mostrando agentes logados por hora
+            # (Tabela auxiliar continua existindo, mas não é exibida)
             df_totais_agentes = pd.DataFrame(
                 {
                     "Hour": df["Hour"],
@@ -179,9 +179,7 @@ if uploaded_file is not None:
                     "Agentes_logados": serie_totais_por_hora.fillna(0).astype(int),
                 }
             )
-
-            st.markdown("**Quantidade de agentes logados por hora (aplicada nos cálculos):**")
-            st.dataframe(df_totais_agentes, use_container_width=True)
+            # TABELA OCULTA: não usamos st.markdown() nem st.dataframe() aqui
 
             df_agentes_global_long = None
 
