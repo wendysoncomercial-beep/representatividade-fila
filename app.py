@@ -18,6 +18,17 @@ st.write(
 )
 
 
+def center_df(df: pd.DataFrame):
+    """
+    Centraliza cabeçalho e células da tabela.
+    """
+    styler = df.style.set_properties(**{"text-align": "center"})
+    styler = styler.set_table_styles(
+        [{"selector": "th", "props": [("text-align", "center")]}]
+    )
+    return styler
+
+
 def normaliza_hora_para_turno(valor):
     """
     Normaliza a coluna Hour para o formato 'HH:00',
@@ -79,7 +90,7 @@ if uploaded_file is not None:
 
         # 🔎 Prévia dos dados brutos (como vem do Excel)
         st.subheader("📋 Prévia dos Dados (bruto)")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(center_df(df), use_container_width=True)
 
         # Identifica colunas de filas (todas menos Hour e qualquer coluna com 'total')
         total_cols = [c for c in df.columns if "total" in c.lower()]
@@ -125,7 +136,7 @@ if uploaded_file is not None:
                 "Cada linha representa uma hora, e cada coluna de fila traz a participação "
                 "percentual daquela fila dentro da hora."
             )
-            st.dataframe(df_percent_global_fmt, use_container_width=True)
+            st.dataframe(center_df(df_percent_global_fmt), use_container_width=True)
 
             # ==========================
             # 1.1) DISTRIBUIÇÃO GERAL DE AGENTES (TODAS AS HORAS)
@@ -285,12 +296,12 @@ if uploaded_file is not None:
                     df_agentes_global_long_view = df_agentes_global_long_sorted[cols_detalhe]
 
                     st.markdown("**Tabela larga (Hour x Fila com agentes):**")
-                    st.dataframe(df_agentes_wide, use_container_width=True)
+                    st.dataframe(center_df(df_agentes_wide), use_container_width=True)
 
                     st.markdown(
                         "**Tabela detalhada (Hour, Fila, %, Agentes) – hora asc, agentes desc:**"
                     )
-                    st.dataframe(df_agentes_global_long_view, use_container_width=True)
+                    st.dataframe(center_df(df_agentes_global_long_view), use_container_width=True)
 
                     # Download da distribuição geral de agentes (tabela longa e wide)
                     buf_agents_global = io.BytesIO()
@@ -423,9 +434,11 @@ if uploaded_file is not None:
                             with col1:
                                 st.subheader(f"📄 Distribuição por fila - Hora {hora_escolhida}")
                                 st.dataframe(
-                                    df_agentes_sorted[
-                                        ["Fila", "Percentual_formatado", "Agentes_sugeridos"]
-                                    ],
+                                    center_df(
+                                        df_agentes_sorted[
+                                            ["Fila", "Percentual_formatado", "Agentes_sugeridos"]
+                                        ]
+                                    ),
                                     use_container_width=True,
                                 )
 
