@@ -10,6 +10,18 @@ import io
 
 st.set_page_config(page_title="Representatividade por Fila", layout="wide")
 
+# Helper para centralizar todas as tabelas
+def center_df(df: pd.DataFrame):
+    return (
+        df.style
+        .set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},
+            ]
+        )
+        .set_properties(**{"text-align": "center"})
+    )
+
 st.title("📊 Representatividade por Fila e Hora")
 st.write(
     "Envie o arquivo Excel com os dados por fila/hora "
@@ -34,7 +46,7 @@ if uploaded_file is not None:
 
         # 🔎 Prévia dos dados brutos (como vem do Excel)
         st.subheader("📋 Prévia dos Dados (bruto)")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(center_df(df), use_container_width=True)
 
         # Identifica colunas de filas (todas menos Hour e qualquer coluna com 'total')
         total_cols = [c for c in df.columns if "total" in c.lower()]
@@ -80,7 +92,7 @@ if uploaded_file is not None:
                 "Cada linha representa uma hora, e cada coluna de fila traz a participação "
                 "percentual daquela fila dentro da hora."
             )
-            st.dataframe(df_percent_global_fmt, use_container_width=True)
+            st.dataframe(center_df(df_percent_global_fmt), use_container_width=True)
 
             # ==========================
             # 1.1) DISTRIBUIÇÃO GERAL DE AGENTES (TODAS AS HORAS)
@@ -143,11 +155,19 @@ if uploaded_file is not None:
                 if registros:
                     df_agentes_global_long = pd.DataFrame(registros)
 
+                    # 🔽 Ordenação da tabela detalhada:
+                    # 1) Agentes_sugeridos: do maior para o menor
+                    # 2) Hour: do menor para o maior
+                    df_agentes_global_long = df_agentes_global_long.sort_values(
+                        by=["Agentes_sugeridos", "Hour"],
+                        ascending=[False, True]
+                    ).reset_index(drop=True)
+
                     st.markdown("**Tabela larga (Hour x Fila com agentes):**")
-                    st.dataframe(df_agentes_wide, use_container_width=True)
+                    st.dataframe(center_df(df_agentes_wide), use_container_width=True)
 
                     st.markdown("**Tabela detalhada (Hour, Fila, %, Agentes):**")
-                    st.dataframe(df_agentes_global_long, use_container_width=True)
+                    st.dataframe(center_df(df_agentes_global_long), use_container_width=True)
 
                     # Download da distribuição geral de agentes (tabela longa)
                     buf_agents_global = io.BytesIO()
@@ -234,7 +254,7 @@ if uploaded_file is not None:
                         with col1:
                             st.subheader(f"📄 Tabela - Hora {hora_escolhida}")
                             st.dataframe(
-                                df_plot[["Fila", "Percentual_formatado"]],
+                                center_df(df_plot[["Fila", "Percentual_formatado"]]),
                                 use_container_width=True
                             )
 
@@ -272,7 +292,11 @@ if uploaded_file is not None:
                                 df_agentes.loc[idx_extra, "Agentes_sugeridos"] += 1
 
                             st.dataframe(
-                                df_agentes[["Fila", "Percentual_formatado", "Agentes_sugeridos"]],
+                                center_df(
+                                    df_agentes[
+                                        ["Fila", "Percentual_formatado", "Agentes_sugeridos"]
+                                    ]
+                                ),
                                 use_container_width=True
                             )
 
