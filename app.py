@@ -239,7 +239,7 @@ if uploaded_file is not None:
                                 {
                                     "Hour": hora,
                                     "Fila": fila,
-                                    "Percentual": percentual,
+                                    "Percentual": percentual,  # mantido internamente
                                     "Percentual_formatado": f"{percentual:.2f}".replace(".", ",") + "%",
                                     "Agentes_sugeridos": agentes,
                                     "Agentes_logados_na_hora": agentes_totais_linha,
@@ -249,11 +249,21 @@ if uploaded_file is not None:
                 if registros:
                     df_agentes_global_long = pd.DataFrame(registros)
 
+                    # 🔹 Tabela detalhada apenas com Percentual_formatado (sem Percentual)
+                    cols_detalhe = [
+                        "Hour",
+                        "Fila",
+                        "Percentual_formatado",
+                        "Agentes_sugeridos",
+                        "Agentes_logados_na_hora",
+                    ]
+                    df_agentes_global_long_view = df_agentes_global_long[cols_detalhe]
+
                     st.markdown("**Tabela larga (Hour x Fila com agentes):**")
                     st.dataframe(df_agentes_wide, use_container_width=True)
 
                     st.markdown("**Tabela detalhada (Hour, Fila, %, Agentes):**")
-                    st.dataframe(df_agentes_global_long, use_container_width=True)
+                    st.dataframe(df_agentes_global_long_view, use_container_width=True)
 
                     # Download da distribuição geral de agentes (tabela longa e wide)
                     buf_agents_global = io.BytesIO()
@@ -263,7 +273,8 @@ if uploaded_file is not None:
                             index=False,
                             sheet_name="Distribuicao_Agentes_Wide",
                         )
-                        df_agentes_global_long.to_excel(
+                        # Exporta também só com Percentual_formatado
+                        df_agentes_global_long_view.to_excel(
                             writer,
                             index=False,
                             sheet_name="Distribuicao_Agentes_Long",
