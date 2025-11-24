@@ -383,21 +383,20 @@ if uploaded_file is not None:
 
                         st.subheader(f"👥 Distribuição de agentes - Hora {hora_escolhida}")
 
-                        # Sugere como default o total de agentes logados nessa hora (se mapeado)
-                        valor_padrao_hora = 0
+                        # Puxa automaticamente o total da visão geral
                         hora_norm_escolhida = normaliza_hora_para_turno(hora_escolhida)
-                        if hora_norm_escolhida in agentes_por_turno:
-                            valor_padrao_hora = agentes_por_turno[hora_norm_escolhida]
+                        total_agentes = int(agentes_por_turno.get(hora_norm_escolhida, 0))
 
-                        total_agentes = st.number_input(
-                            "Informe o total de agentes disponíveis nessa hora:",
-                            min_value=0,
-                            step=1,
-                            value=int(valor_padrao_hora),
-                            key="input_agentes_hora",
+                        st.markdown(
+                            f"**Agentes logados nessa hora (a partir da visão geral):** {total_agentes}"
                         )
 
-                        if total_agentes > 0:
+                        if total_agentes <= 0:
+                            st.warning(
+                                "Para essa hora, não há agentes logados configurados na visão geral. "
+                                "Preencha primeiro em 'Visão Geral - Distribuição de Agentes'."
+                            )
+                        else:
                             # Cálculo proporcional: agentes = total * percentual / 100
                             raw = total_agentes * df_plot["Percentual"] / 100.0
 
