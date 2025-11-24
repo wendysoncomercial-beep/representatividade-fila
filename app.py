@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
-import altair as alt  # <-- para o gráfico com rótulos
+import altair as alt  # para o gráfico com rótulos
 
 st.set_page_config(page_title="Representatividade por Fila", layout="wide")
 
@@ -45,6 +45,20 @@ def normaliza_hora_para_turno(valor):
         return f"{int(float(s)):02d}:00"
     except Exception:
         return None
+
+
+def hora_para_ord(valor):
+    """
+    Converte a hora (como está na coluna Hour) em um número inteiro (0–23)
+    para poder ordenar corretamente (08:00, 09:00, 10:00...).
+    """
+    h_norm = normaliza_hora_para_turno(valor)
+    if h_norm is None:
+        return np.nan
+    try:
+        return int(h_norm.split(":")[0])
+    except Exception:
+        return np.nan
 
 
 uploaded_file = st.file_uploader("📂 Envie o arquivo Excel", type=["xlsx"])
@@ -247,6 +261,21 @@ if uploaded_file is not None:
                 if registros:
                     df_agentes_global_long = pd.DataFrame(registros)
 
+                    # ➜ Ordena: 1) Agentes_sugeridos (desc), 2) Hora (asc, via Hour_ord)
+                    df_agentes_global_long_sorted = df_agentes_global_long.copy()
+                    df_agentes_global_long_sorted["Hour_ord"] = df_agentes_global_long_sorted[
+                        "Hour"
+                    ].apply(hora_para_ord)
+
+                    df_agentes_global_long_sorted = (
+                        df_agentes_global_long_sorted.sort_values(
+                            by=["Agentes_sugeridos", "Hour_ord"],
+                            ascending=[False, True],
+                        )
+                        .drop(columns=["Hour_ord"])
+                        .reset_index(drop=True)
+                    )
+
                     # 🔹 Tabela detalhada apenas com Percentual_formatado (sem Percentual)
                     cols_detalhe = [
                         "Hour",
@@ -255,12 +284,14 @@ if uploaded_file is not None:
                         "Agentes_sugeridos",
                         "Agentes_logados_na_hora",
                     ]
-                    df_agentes_global_long_view = df_agentes_global_long[cols_detalhe]
+                    df_agentes_global_long_view = df_agentes_global_long_sorted[cols_detalhe]
 
                     st.markdown("**Tabela larga (Hour x Fila com agentes):**")
                     st.dataframe(df_agentes_wide, use_container_width=True)
 
-                    st.markdown("**Tabela detalhada (Hour, Fila, %, Agentes):**")
+                    st.markdown(
+                        "**Tabela detalhada (Hour, Fila, %, Agentes) – ordenada por agentes (desc) e hora (asc):**"
+                    )
                     st.dataframe(df_agentes_global_long_view, use_container_width=True)
 
                     # Download da distribuição geral de agentes (tabela longa e wide)
@@ -271,7 +302,7 @@ if uploaded_file is not None:
                             index=False,
                             sheet_name="Distribuicao_Agentes_Wide",
                         )
-                        # Exporta também só com Percentual_formatado
+                        # Exporta também só com Percentual_formatado já ordenada
                         df_agentes_global_long_view.to_excel(
                             writer,
                             index=False,
